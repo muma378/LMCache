@@ -32,6 +32,7 @@ def CreateStorageBackends(
     metadata: LMCacheEngineMetadata,
     loop: asyncio.AbstractEventLoop,
     memory_allocator: MemoryAllocatorInterface,
+    cpu_memory_allocator: Optional[MemoryAllocatorInterface] = None,
     dst_device: str = "cuda",
     lmcache_worker: Optional["LMCacheWorker"] = None,
     lookup_server: Optional[LookupServerInterface] = None,
@@ -65,9 +66,11 @@ def CreateStorageBackends(
     if config.enable_nixl and not config.local_cpu:
         pass
     else:
+        if cpu_memory_allocator is None:
+            cpu_memory_allocator = memory_allocator
         local_cpu_backend = LocalCPUBackend(
             config,
-            memory_allocator,
+            cpu_memory_allocator,
             lookup_server,
             lmcache_worker,
         )

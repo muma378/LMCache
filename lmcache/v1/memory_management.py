@@ -1719,6 +1719,79 @@ class CuFileMemoryAllocator(GPUMemoryAllocator):
         self.cuFileBufDeregister(ctypes.c_void_p(self.base_pointer))
 
 
+class CuFileCPUMemoryAllocator(MemoryAllocatorInterface):
+    """
+    CuFile + CPU Memory Allocator
+    This is a special allocator makes cufile and cpu compatible.
+    """
+
+    def __init__(self):
+        pass
+
+    def init_cufile_memory_allocator(
+        self,
+        size: int,
+        device=None,
+    ):
+        self.cufile_allocator = CuFileMemoryAllocator(size, device)
+
+    def init_cpu_memory_allocator(
+        self,
+        size: int,
+    ):
+        self.cpu_allocator = MixedMemoryAllocator(size)
+
+    def allocate(
+        self,
+        shape: Union[torch.Size, Tuple[int, ...]],
+        dtype: Optional[torch.dtype],
+        fmt: MemoryFormat = MemoryFormat.UNDEFINED,
+        allocator_type: Optional[str] = "cpu",
+    ) -> Optional[MemoryObj]:
+        if allocator_type == "cufile":
+            return self.cufile_allocator.allocate(shape, dtype, fmt)
+        elif allocator_type == "cpu":
+            return self.cpu_allocator.allocate(shape, dtype, fmt)
+        else:
+            raise ValueError(f"Unsupported allocator type: {allocator_type}")
+
+    def batched_allocate(
+        self,
+        shape: Union[torch.Size, Tuple[int, ...]],
+        dtype: Optional[torch.dtype],
+        batch_size: int,
+        fmt: MemoryFormat = MemoryFormat.UNDEFINED,
+        allocator_type: Optional[str] = "cpu",
+    ) -> Optional[List[MemoryObj]]:
+        if allocator_type == "cufile":
+            return self.cufile_allocator.batched_allocate(shape, dtype, batch_size, fmt)
+        elif allocator_type == "cpu":
+            return self.cpu_allocator.batched_allocate(shape, dtype, batch_size, fmt)
+        else:
+            raise ValueError(f"Unsupported allocator type: {allocator_type}")
+
+    def free(self, memory_obj: MemoryObj, allocator_type: Optional[str] = "cpu"):
+        if allocator_type == "cufile":
+            self.cufile_allocator.free(memory_obj)
+        elif allocator_type == "cpu":
+            self.cpu_allocator.free(memory_obj)
+        else:
+            raise ValueError(f"Unsupported allocator type: {allocator_type}")
+
+    def batched_free(
+        self,
+        memory_objs: List[MemoryObj],
+        allocator_type: Optional[str] = None,
+        update_stats: bool = True,
+    ):
+        if allocator_type == "cufile":
+            self.cufile_allocator.batched_free(memory_objs, update_stats=update_stats)
+        elif allocator_type == "cpu":
+            self.cpu_allocator.batched_free(memory_objs, update_stats=update_stats)
+        else:
+            raise ValueError(f"Unsupported allocator type: {allocator_type}")
+
+
 class NixlCPUMemoryAllocator(MemoryAllocatorInterface):
     """
     NIXL + CPU Memory Allocator

@@ -22,6 +22,7 @@ from lmcache.utils import CacheEngineKey, _lmcache_nvtx_annotate
 from lmcache.v1.config import LMCacheEngineConfig
 from lmcache.v1.lookup_server import LookupServerInterface
 from lmcache.v1.memory_management import (
+    CuFileCPUMemoryAllocator,
     MemoryAllocatorInterface,
     MemoryFormat,
     MemoryObj,
@@ -55,6 +56,10 @@ class StorageManager:
         self.thread = threading.Thread(target=self.loop.run_forever)
         self.thread.start()
 
+        cpu_memory_allocator = None
+        if isinstance(allocator, CuFileCPUMemoryAllocator):
+            cpu_memory_allocator = allocator.cpu_allocator
+            allocator = allocator.cufile_allocator
         dst_device = "cuda"
         self.storage_backends: OrderedDict[str, StorageBackendInterface] = (
             CreateStorageBackends(
@@ -62,11 +67,13 @@ class StorageManager:
                 metadata,
                 self.loop,
                 allocator,
+                cpu_memory_allocator,
                 dst_device,
                 lmcache_worker,
                 lookup_server,
             )
         )
+        logger.info(f"Storage backends created: {list(self.storage_backends.keys())}")
 
         self.enable_nixl = config.enable_nixl
 
@@ -76,6 +83,9 @@ class StorageManager:
                 self.local_cpu_backend = self.storage_backends["LocalCPUBackend"]
         else:
             self.allocator_backend = self.storage_backends["LocalCPUBackend"]
+
+        if not config.local_cpu:
+            self.storage_backends.pop("LocalCPUBackend", None)
 
         self.manager_lock = threading.Lock()
 

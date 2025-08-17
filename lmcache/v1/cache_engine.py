@@ -38,9 +38,9 @@ from lmcache.v1.gpu_connector import (
     VLLMPagedMemLayerwiseGPUConnector,
 )
 from lmcache.v1.lookup_server import LookupServerInterface, RedisLookupServer
-from lmcache.v1.memory_management import CuFileMemoryAllocator  # noqa: E501
 from lmcache.v1.memory_management import (  # noqa: E501
     AdHocMemoryAllocator,
+    CuFileCPUMemoryAllocator,
     MemoryAllocatorInterface,
     MemoryFormat,
     MemoryObj,
@@ -1198,7 +1198,15 @@ class LMCacheEngineBuilder:
 
         if config.weka_path is not None or config.gds_path is not None:
             assert config.cufile_buffer_size is not None
-            return CuFileMemoryAllocator(config.cufile_buffer_size * 1024**2)
+            cufile_cpu_mem_allocator = CuFileCPUMemoryAllocator()
+            cufile_cpu_mem_allocator.init_cufile_memory_allocator(
+                config.cufile_buffer_size * 1024**2
+            )
+            max_local_cpu_size = config.max_local_cpu_size
+            cufile_cpu_mem_allocator.init_cpu_memory_allocator(
+                int(max_local_cpu_size * 1024**3)
+            )
+            return cufile_cpu_mem_allocator
 
         max_local_cpu_size = config.max_local_cpu_size
         save_only_first_rank_default = True if metadata.use_mla else False
